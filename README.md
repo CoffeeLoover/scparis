@@ -10,6 +10,7 @@
 - Gérer l'envoi de gas/wei lors du rappel de l'update
 - Rappeler l'oracle à la date de fin du match pour mettre à jour les données du match et déterminer le vainqueur
 - Revérifier les conditions de détermination du gagnant => Arpès prolongation ou avant?
+- Nettoyer le code
 
 Fin phase rédaction du contrat
 
