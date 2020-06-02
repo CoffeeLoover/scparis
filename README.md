@@ -25,7 +25,3 @@ Fin phase rédaction du contrat
 
 Done
 
-
-
-- 
-
