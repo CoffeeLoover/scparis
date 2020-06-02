@@ -3,12 +3,7 @@ import "github.com/provable-things/ethereum-api/blob/master/provableAPI_0.4.25.s
 import "github.com/Arachnid/solidity-stringutils/strings.sol";
 import "https://github.com/bokkypoobah/BokkyPooBahsDateTimeLibrary/blob/1ea8ef42b3d8db17b910b46e4f8c124b59d77c03/contracts/BokkyPooBahsDateTimeLibrary.sol";
 
-// interface Aion
-contract Aion {
-    uint256 public serviceFee;
-    function ScheduleCall(uint256 blocknumber, address to, uint256 value, uint256 gaslimit, uint256 gasprice, bytes data, bool schedType) public payable returns (uint,address);
 
-}
 
 contract OracleFutball is usingProvable {
     using strings for *;
@@ -87,12 +82,12 @@ contract OracleFutball is usingProvable {
         awayTeam = substring(parts[9], 15 , parts[9].toSlice().len() - 2);
    }
 
-   function updatePrice() public payable {
+   function updatePrice(uint _delay) public payable {
        if (provable_getPrice("URL") > address(this).balance) {
            emit LogNewProvableQuery("Provable query was NOT sent, please add some ETH to cover for the query fee");
        } else {
            emit LogNewProvableQuery("Provable query was sent, standing by for the answer..");
-           provable_query("URL", url2);
+           provable_query(_delay, "URL", url2);
        }
    }
 }
@@ -109,9 +104,8 @@ contract OracleFutball is usingProvable {
 
 contract Betting {
     OracleFutball oracleF;
-    Aion aion;
     using strings for *;
-    enum State { AWAITING_SETTINGS, AWAITING_PAYMENT_NICO, AWAITING_PAYMENT_COCO, AWAITING_START, AWAITING_RESULT, COMPLETE}
+    enum State { AWAITING_SETTINGS, AWAITING_PAYMENT_NICO, AWAITING_PAYMENT_COCO, AWAITING_START,AWAITING_RESULT, AWAITING_END, COMPLETE}
     State public currentState;    
     address private nico;
     address private coco;
@@ -122,10 +116,13 @@ contract Betting {
     uint private total;
     uint public mise;
     uint public timeend;
+    string public status;
     address private winner;
     address private oracleAddress;
     string private matchId;
     uint private tie = 0;
+    uint private delay;
+
     
     /// initialisation: entrée par le constructeur du contrat les adresses des participants
     constructor(uint _mise, address _oracleAddress) public {
@@ -136,12 +133,19 @@ contract Betting {
     }
 
 
-    function setMatchId(string _matchId) public payable {
+
+    function getBalance() public view returns(uint) {
+        return address(this).balance;
+    }
+    
+    
+    function setMatchId(string _matchId) public {
         require(currentState == State.AWAITING_SETTINGS);
         require(msg.sender == coco);
         matchId = _matchId;
         oracleF.setMatchId(matchId);
-        oracleF.updatePrice();  
+        oracleF.updatePrice(0);  
+        currentState = State.AWAITING_PAYMENT_NICO;
     }
     
 
@@ -155,9 +159,8 @@ contract Betting {
         _tempm = _message.toSlice().concat(", début du match: ".toSlice()); 
         _message = _tempm;
         _time = oracleF.timeresult();
-        timeend = _time + 10800;
-        currentState = State.AWAITING_PAYMENT_NICO;
-        
+        timeend = _time + 9000;
+        status = oracleF.status();
         return (_message, _time);
     }    
     
@@ -182,51 +185,63 @@ contract Betting {
         betnico = _betnico;
     }
     
-    function startBet() public {
+    function startBet() public payable {
         // revérifier que le match n'est pas commencé
         require(misenico == misecoco);
         require(currentState == State.AWAITING_START);
         require(msg.sender == coco);
         currentState = State.AWAITING_RESULT;
+        
+        delay = timeend - now;
+        oracleF.updatePrice.value(0.001 ether)(delay);
+        currentState = State.AWAITING_END;
     }
     
-    function result() public {
-        require(currentState == State.AWAITING_RESULT);
-        aion = Aion(0xFcFB45679539667f7ed55FA59A15c8Cad73d9a4E);
-        bytes memory data = abi.encodeWithSelector(bytes4(keccak256('oracleF.updatePrice()')));
-        uint callCost = 200000*1e9 + aion.serviceFee();
-        aion.ScheduleCall.value(callCost)( timeend, address(this), 0, 200000, 1e9, data, true);
-        if(oracleF.goalHT() > oracleF.goalAT()) {
-            if(betcoco < betnico) {
-                winner = coco;
-            }
-            else {
-                winner = nico;
-            }
-        }
-        else if(oracleF.goalHT() < oracleF.goalAT()) {
-            if(betcoco < betnico) {
-                winner = nico;
-            }
-            else {
-                winner = nico;
-            }
-        }
-        else {
-            tie = 1;
-        }
-        
-        if(tie == 1) {
-            coco.transfer(address(this).balance / 2);
-            nico.transfer(address(this).balance / 2);
-        }
-        else {
-        winner.transfer(address(this).balance);
-        }
-        currentState = State.COMPLETE;
-        selfdestruct(coco);
-        
-    }
     
-    function () public payable {}
+    function declareWinner() public payable returns(string) {
+        string memory _message;
+        require(block.timestamp >= timeend);
+        require(currentState == State.AWAITING_END);
+        
+        if(keccak256(abi.encodePacked(oracleF.status())) != keccak256(abi.encodePacked("FT"))) {
+            oracleF.updatePrice.value(0.001 ether)(200); 
+            _message = "Le match n'est pas encore fini";
+        }
+        else {
+            if(oracleF.goalHT() > oracleF.goalAT()) {
+                if(betcoco < betnico) {
+                    winner = coco;
+                }
+                else {
+                    winner = nico;
+                }
+            }
+            else if(oracleF.goalHT() < oracleF.goalAT()) {
+                if(betcoco < betnico) {
+                    winner = nico;
+                }
+                else {
+                    winner = nico;
+                }
+            }
+            else {
+                tie = 1;
+            }
+            
+            if(tie == 1) {
+                coco.transfer(address(this).balance / 2);
+                nico.transfer(address(this).balance / 2);
+            }
+            else {
+            winner.transfer(address(this).balance);
+            }
+            currentState = State.COMPLETE;
+            _message = "Le match est fini";
+            selfdestruct(coco);
+            
+        }
+        
+        return(_message);    
+    }
+
 }
