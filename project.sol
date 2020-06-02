@@ -1,7 +1,6 @@
 pragma solidity ^0.4.25;
 import "github.com/provable-things/ethereum-api/blob/master/provableAPI_0.4.25.sol";
 import "github.com/Arachnid/solidity-stringutils/strings.sol";
-import "https://github.com/bokkypoobah/BokkyPooBahsDateTimeLibrary/blob/1ea8ef42b3d8db17b910b46e4f8c124b59d77c03/contracts/BokkyPooBahsDateTimeLibrary.sol";
 
 
 
@@ -16,11 +15,6 @@ contract OracleFutball is usingProvable {
     string public awayTeam;
     uint public goalHT;
     uint public goalAT;
-    uint private tyear;
-    uint private tmonth;
-    uint private tday;
-    uint private thour;
-    uint private tminute;
     uint public timeresult;
     uint private matchset;
     event LogNewProvableQuery(string description);
@@ -33,13 +27,10 @@ contract OracleFutball is usingProvable {
         require(matchset == 0);
         matchId = _matchId;
         url = "json(https://api-football-v1.p.rapidapi.com/v2/fixtures/id/".toSlice().concat(matchId.toSlice()); 
-        url2 = url.toSlice().concat("?rapidapi-key=0fc5e0da34msh7fd9ba25fa448dcp1f206ejsndada5b83e617).api.fixtures.0.[event_date,statusShort,goalsHomeTeam,goalsAwayTeam,homeTeam,awayTeam]".toSlice()); 
+        url2 = url.toSlice().concat("?rapidapi-key=0fc5e0da34msh7fd9ba25fa448dcp1f206ejsndada5b83e617).api.fixtures.0.[event_timestamp,statusShort,goalsHomeTeam,goalsAwayTeam,homeTeam,awayTeam]".toSlice()); 
         matchset +=1;
     }
 
-    function timestampFromDateTime(uint year, uint month, uint day, uint hour, uint minute, uint second) internal pure returns (uint timestamp) {
-        return BokkyPooBahsDateTimeLibrary.timestampFromDateTime(year, month, day, hour, minute, second);
-    }
   
     function stringToUint(string s) internal pure returns (uint) {
         bytes memory b = bytes(s);
@@ -69,17 +60,13 @@ contract OracleFutball is usingProvable {
         for (uint i = 0; i < parts.length; i++) {                              
            parts[i] = s.split(delim).toString();                               
         } 
-        tyear = stringToUint(substring(parts[0], 2 , 6));
-        tmonth = stringToUint(substring(parts[0], 7 , 9));
-        tday = stringToUint(substring(parts[0], 10 , 12));
-        thour = stringToUint(substring(parts[0], 13 , 15));
-        tminute = stringToUint(substring(parts[0], 16 , 18));
-        timeresult = timestampFromDateTime(tyear, tmonth, tday, thour, tminute, 60);
+
+        timeresult = stringToUint(parts[0]);
         status = substring(parts[1], 2 , parts[1].toSlice().len() - 1);
         goalHT = stringToUint(parts[2]);
         goalAT = stringToUint(parts[3]);
-        homeTeam = substring(parts[6], 15 , parts[6].toSlice().len() - 1);
-        awayTeam = substring(parts[9], 15 , parts[9].toSlice().len() - 2);
+        homeTeam = substring(parts[6], 15 , parts[6].toSlice().len() - 2);
+        awayTeam = substring(parts[9], 15 , parts[9].toSlice().len() - 3);
    }
 
    function updatePrice(uint _delay) public payable {
