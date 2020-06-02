@@ -3,6 +3,13 @@ import "github.com/provable-things/ethereum-api/blob/master/provableAPI_0.4.25.s
 import "github.com/Arachnid/solidity-stringutils/strings.sol";
 import "https://github.com/bokkypoobah/BokkyPooBahsDateTimeLibrary/blob/1ea8ef42b3d8db17b910b46e4f8c124b59d77c03/contracts/BokkyPooBahsDateTimeLibrary.sol";
 
+// interface Aion
+contract Aion {
+    uint256 public serviceFee;
+    function ScheduleCall(uint256 blocknumber, address to, uint256 value, uint256 gaslimit, uint256 gasprice, bytes data, bool schedType) public payable returns (uint,address);
+
+}
+
 contract OracleFutball is usingProvable {
     using strings for *;
     string public answer;
@@ -102,10 +109,10 @@ contract OracleFutball is usingProvable {
 
 contract Betting {
     OracleFutball oracleF;
+    Aion aion;
     using strings for *;
     enum State { AWAITING_SETTINGS, AWAITING_PAYMENT_NICO, AWAITING_PAYMENT_COCO, AWAITING_START, AWAITING_RESULT, COMPLETE}
-    
-    State public currentState;
+    State public currentState;    
     address private nico;
     address private coco;
     uint private misecoco;
@@ -114,6 +121,7 @@ contract Betting {
     uint public betnico;
     uint private total;
     uint public mise;
+    uint public timeend;
     address private winner;
     address private oracleAddress;
     string private matchId;
@@ -147,6 +155,7 @@ contract Betting {
         _tempm = _message.toSlice().concat(", début du match: ".toSlice()); 
         _message = _tempm;
         _time = oracleF.timeresult();
+        timeend = _time + 10800;
         currentState = State.AWAITING_PAYMENT_NICO;
         
         return (_message, _time);
@@ -183,6 +192,10 @@ contract Betting {
     
     function result() public {
         require(currentState == State.AWAITING_RESULT);
+        aion = Aion(0xFcFB45679539667f7ed55FA59A15c8Cad73d9a4E);
+        bytes memory data = abi.encodeWithSelector(bytes4(keccak256('oracleF.updatePrice()')));
+        uint callCost = 200000*1e9 + aion.serviceFee();
+        aion.ScheduleCall.value(callCost)( timeend, address(this), 0, 200000, 1e9, data, true);
         if(oracleF.goalHT() > oracleF.goalAT()) {
             if(betcoco < betnico) {
                 winner = coco;
@@ -215,4 +228,5 @@ contract Betting {
         
     }
     
+    function () public payable {}
 }
