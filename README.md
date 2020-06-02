@@ -1,9 +1,9 @@
 # Smart Contract - Paris avec Nico sur un match de foot
 1er test de smart contract
 
-<b><u>Choses restantes à faire:</u></b>
+<b><i>Choses restantes à faire:</i></b>
 
-<u>Phase rédaction du contrat :</u>
+<i>Phase rédaction du contrat :</i>
 - Revérifier les noms de teams ( => syntaxe propre?)
 - Vérifier que le match n'est pas commencé au moment du startContract, si non => selfdestruct contrat
 - <b>Lancer une fonction à une date précise</b>
@@ -13,7 +13,7 @@
 
 Fin phase rédaction du contrat
 
-<u>Phase déploiement du contrat:</u>
+<i>Phase déploiement du contrat :</i>
 - Télécharger les trucs genre truffle
 - Voir le nombre de gas nécessaire et la gestion du truc
 - Comment uploader le contrat
