@@ -1,5 +1,5 @@
 # Smart Contract - Paris avec Nico sur un match de foot
-1er test de smart contract
+
 
 <b><i>Choses restantes à faire:</i></b>
 
