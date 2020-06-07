@@ -6,7 +6,7 @@ import "github.com/Arachnid/solidity-stringutils/strings.sol";
 
 contract OracleFutball is usingProvable {
     using strings for *;
-    string public answer;
+    address private owner;
     string private matchId;
     string public status;
     string private url;
@@ -17,20 +17,14 @@ contract OracleFutball is usingProvable {
     uint public goalAT;
     uint public timeresult;
     uint private matchset;
+    mapping(bytes32=>bool) validIds;
     event LogNewProvableQuery(string description);
+    event knowprice(uint queryprice);
 
-   constructor() public payable {
+   constructor() public {
+       owner = msg.sender;
         matchset = 0;
    }
-   
-    function setMatchId(string _matchId) public {
-        require(matchset == 0);
-        matchId = _matchId;
-        url = "json(https://api-football-v1.p.rapidapi.com/v2/fixtures/id/".toSlice().concat(matchId.toSlice()); 
-        url2 = url.toSlice().concat("?rapidapi-key=0fc5e0da34msh7fd9ba25fa448dcp1f206ejsndada5b83e617).api.fixtures.0.[event_timestamp,statusShort,goalsHomeTeam,goalsAwayTeam,homeTeam,awayTeam]".toSlice()); 
-        matchset +=1;
-    }
-
   
     function stringToUint(string s) internal pure returns (uint) {
         bytes memory b = bytes(s);
@@ -51,14 +45,23 @@ contract OracleFutball is usingProvable {
         }
         return string(cutted);
     }
-   function __callback(bytes32 _queryId, string result) public {
+   
+    function setMatchId(string _matchId) public {
+        require(matchset == 0);
+        matchId = _matchId;
+        url = "json(https://api-football-v1.p.rapidapi.com/v2/fixtures/id/".toSlice().concat(matchId.toSlice()); 
+        url2 = url.toSlice().concat("?rapidapi-key=0fc5e0da34msh7fd9ba25fa448dcp1f206ejsndada5b83e617).api.fixtures.0.[event_timestamp,statusShort,goalsHomeTeam,goalsAwayTeam,homeTeam,awayTeam, elapsed]".toSlice()); 
+        matchset +=1;
+    }
+
+   function __callback(bytes32 myid, string result) public {
+        if (!validIds[myid]) revert();
         if (msg.sender != provable_cbAddress()) revert();
-        answer = result;
         strings.slice memory s = result.toSlice();                
         strings.slice memory delim = ",".toSlice();                            
         string[] memory parts = new string[](s.count(delim) + 1);                  
         for (uint i = 0; i < parts.length; i++) {                              
-           parts[i] = s.split(delim).toString();                               
+           parts[i] = s.split(delim).toString();                              
         } 
 
         timeresult = stringToUint(parts[0]);
@@ -67,14 +70,18 @@ contract OracleFutball is usingProvable {
         goalAT = stringToUint(parts[3]);
         homeTeam = substring(parts[6], 15 , parts[6].toSlice().len() - 2);
         awayTeam = substring(parts[9], 15 , parts[9].toSlice().len() - 3);
+        delete validIds[myid];
    }
 
    function updatePrice(uint _delay) public payable {
+       require(tx.origin == owner);
        if (provable_getPrice("URL") > address(this).balance) {
-           emit LogNewProvableQuery("Provable query was NOT sent, please add some ETH to cover for the query fee");
-       } else {
-           emit LogNewProvableQuery("Provable query was sent, standing by for the answer..");
-           provable_query(_delay, "URL", url2);
+           emit LogNewProvableQuery("Balance insuffisante pour la requête");
+       } 
+       else {
+           emit LogNewProvableQuery("Ok requête en cours");
+           bytes32 queryId = provable_query(_delay, "URL", url2);
+           validIds[queryId] = true;
        }
    }
 }
@@ -108,8 +115,8 @@ contract Betting {
     address private oracleAddress;
     string private matchId;
     uint private tie = 0;
-    uint private delay;
-
+    uint public delay;
+    string public elapsed;
     
     /// initialisation: entrée par le constructeur du contrat les adresses des participants
     constructor(uint _mise, address _oracleAddress) public {
@@ -146,7 +153,7 @@ contract Betting {
         _tempm = _message.toSlice().concat(", début du match: ".toSlice()); 
         _message = _tempm;
         _time = oracleF.timeresult();
-        timeend = _time + 9000;
+        delay =  now + 600;
         status = oracleF.status();
         return (_message, _time);
     }    
@@ -178,20 +185,20 @@ contract Betting {
         require(currentState == State.AWAITING_START);
         require(msg.sender == coco);
         currentState = State.AWAITING_RESULT;
-        
-        delay = timeend - now;
-        oracleF.updatePrice.value(0.001 ether)(delay);
+        oracleF.updatePrice.value(0.005 ether)(delay);
         currentState = State.AWAITING_END;
     }
     
     
     function declareWinner() public payable returns(string) {
         string memory _message;
-        require(block.timestamp >= timeend);
+        require(block.timestamp >= delay);
         require(currentState == State.AWAITING_END);
         
+        status = oracleF.status();
+        
         if(keccak256(abi.encodePacked(oracleF.status())) != keccak256(abi.encodePacked("FT"))) {
-            oracleF.updatePrice.value(0.001 ether)(200); 
+            oracleF.updatePrice.value(0.005 ether)(delay + 300); 
             _message = "Le match n'est pas encore fini";
         }
         else {
